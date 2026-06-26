@@ -81,6 +81,34 @@ func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleModuleVersionUp
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleModuleVersionUpgrade", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleModuleVersionUpgrade), ctx, devConfig)
 }
 
+// handleNFDRule mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleNFDRule(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleNFDRule", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// handleNFDRule indicates an expected call of handleNFDRule.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleNFDRule(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleNFDRule", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleNFDRule), ctx, devConfig)
+}
+
+// handleXPUManager mocks base method.
+func (m *MockdeviceConfigReconcilerHelperAPI) handleXPUManager(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "handleXPUManager", ctx, devConfig)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// handleXPUManager indicates an expected call of handleXPUManager.
+func (mr *MockdeviceConfigReconcilerHelperAPIMockRecorder) handleXPUManager(ctx, devConfig any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "handleXPUManager", reflect.TypeOf((*MockdeviceConfigReconcilerHelperAPI)(nil).handleXPUManager), ctx, devConfig)
+}
+
 // setFinalizer mocks base method.
 func (m *MockdeviceConfigReconcilerHelperAPI) setFinalizer(ctx context.Context, devConfig *v1alpha1.DeviceConfig) error {
 	m.ctrl.T.Helper()

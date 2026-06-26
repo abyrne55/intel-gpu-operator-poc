@@ -63,9 +63,11 @@ var _ = Describe("Reconcile", func() {
 
 	ctx := context.Background()
 
-	DescribeTable("reconciler error flow", func(setFinalizerError,
-		
+	DescribeTable("reconciler error flow", func(
+		setFinalizerError,
+		handleNFDRuleError,
 		handleKMMModuleError,
+		handleXPUManagerError,
 		handleModuleVersionUpgradeError bool) {
 		devConfig := &intelv1alpha1.DeviceConfig{}
 		if setFinalizerError {
@@ -73,37 +75,47 @@ var _ = Describe("Reconcile", func() {
 			goto executeTestFunction
 		}
 		mockHelper.EXPECT().setFinalizer(ctx, devConfig).Return(nil)
-		
+
+		if handleNFDRuleError {
+			mockHelper.EXPECT().handleNFDRule(ctx, devConfig).Return(fmt.Errorf("some error"))
+			goto executeTestFunction
+		}
+		mockHelper.EXPECT().handleNFDRule(ctx, devConfig).Return(nil)
+
 		if handleKMMModuleError {
 			mockHelper.EXPECT().handleKMMModule(ctx, devConfig).Return(fmt.Errorf("some error"))
 			goto executeTestFunction
 		}
 		mockHelper.EXPECT().handleKMMModule(ctx, devConfig).Return(nil)
-                if handleModuleVersionUpgradeError {
-                        mockHelper.EXPECT().handleModuleVersionUpgrade(ctx, devConfig).Return(fmt.Errorf("some error"))
-                        goto executeTestFunction
-                }
-                mockHelper.EXPECT().handleModuleVersionUpgrade(ctx, devConfig).Return(nil)
-		
-		
+
+		if handleXPUManagerError {
+			mockHelper.EXPECT().handleXPUManager(ctx, devConfig).Return(fmt.Errorf("some error"))
+			goto executeTestFunction
+		}
+		mockHelper.EXPECT().handleXPUManager(ctx, devConfig).Return(nil)
+
+		if handleModuleVersionUpgradeError {
+			mockHelper.EXPECT().handleModuleVersionUpgrade(ctx, devConfig).Return(fmt.Errorf("some error"))
+			goto executeTestFunction
+		}
+		mockHelper.EXPECT().handleModuleVersionUpgrade(ctx, devConfig).Return(nil)
 
 	executeTestFunction:
 
 		res, err := dcr.Reconcile(ctx, devConfig)
-		if setFinalizerError  || handleKMMModuleError || handleModuleVersionUpgradeError   {
+		if setFinalizerError || handleNFDRuleError || handleKMMModuleError || handleXPUManagerError || handleModuleVersionUpgradeError {
 			Expect(err).To(HaveOccurred())
 		} else {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(res).To(Equal(ctrl.Result{}))
 		}
 	},
-		Entry("good flow, no requeue", false, false, false),
-		Entry("setFinalizer failed", true, false, false),
-		
-		Entry("handleKMMModule failed", false, true, false),
-		Entry("handleModuleVersionUpgrade failed", false, false, true),
-		
-		
+		Entry("good flow, no requeue", false, false, false, false, false),
+		Entry("setFinalizer failed", true, false, false, false, false),
+		Entry("handleNFDRule failed", false, true, false, false, false),
+		Entry("handleKMMModule failed", false, false, true, false, false),
+		Entry("handleXPUManager failed", false, false, false, true, false),
+		Entry("handleModuleVersionUpgrade failed", false, false, false, false, true),
 	)
 
 	It("device config finalization", func() {
@@ -134,7 +146,7 @@ var _ = Describe("setFinalizer", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -170,7 +182,7 @@ var _ = Describe("finalizeDeviceConfig", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -261,7 +273,7 @@ var _ = Describe("handleKMMModule", func() {
 		ctrl := gomock.NewController(GinkgoT())
 		kubeClient = mock_client.NewMockClient(ctrl)
 		kmmHelper = kmmmodule.NewMockKMMModuleAPI(ctrl)
-		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil)
+		dcrh = newDeviceConfigReconcilerHelper(kubeClient, kmmHelper, nil, nil, nil, nil)
 	})
 
 	ctx := context.Background()
@@ -322,7 +334,7 @@ var _ = Describe("handleModuleVersionUpgrade", func() {
                 ctrl := gomock.NewController(GinkgoT())
                 kubeClient = mock_client.NewMockClient(ctrl)
                 upgradeHelper = upgrade.NewMockUpgradeAPI(ctrl)
-                dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, upgradeHelper, nil)
+                dcrh = newDeviceConfigReconcilerHelper(kubeClient, nil, upgradeHelper, nil, nil, nil)
         })
 
         ctx := context.Background()

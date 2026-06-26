@@ -21,12 +21,6 @@ import (
 	"fmt"
 
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
-	intelv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
-	"github.com/abyrne55/intel-gpu-operator-poc/internal/filter"
-	"github.com/abyrne55/intel-gpu-operator-poc/internal/kmmmodule"
-	
-	
-        "github.com/abyrne55/intel-gpu-operator-poc/internal/upgrade"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,6 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	intelv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/filter"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/kmmmodule"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/nfd"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/upgrade"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/xpumanager"
 )
 
 const (
@@ -47,7 +48,6 @@ const (
 	deviceConfigFinalizer      = "intel.node.kubernetes.io/deviceconfig-finalizer"
 )
 
-// ModuleReconciler reconciles a Module object
 type DeviceConfigReconciler struct {
 	helper deviceConfigReconcilerHelperAPI
 	filter *filter.Filter
@@ -57,26 +57,28 @@ func NewDeviceConfigReconciler(
 	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	upgradeHandler upgrade.UpgradeAPI,
+	nfdHandler nfd.NFDRuleAPI,
+	xpuHandler xpumanager.XPUManagerAPI,
 	filter *filter.Filter,
-	scheme *runtime.Scheme) *DeviceConfigReconciler {
-	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, upgradeHandler,   scheme)
+	scheme *runtime.Scheme,
+) *DeviceConfigReconciler {
+	helper := newDeviceConfigReconcilerHelper(client, kmmHandler, upgradeHandler, nfdHandler, xpuHandler, scheme)
 	return &DeviceConfigReconciler{
 		helper: helper,
 		filter: filter,
 	}
 }
 
-// SetupWithManager sets up the controller with the Manager.
 func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&intelv1alpha1.DeviceConfig{}).
 		Owns(&kmmv1beta1.Module{}).
 		Owns(&appsv1.DaemonSet{}).
 		Watches(
-                        &corev1.Node{},
-                        handler.EnqueueRequestsFromMapFunc(r.filter.FindDeviceConfigForNodeChange),
-                        builder.WithPredicates(r.filter.GetNodePredicate()),
-                ).
+			&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.filter.FindDeviceConfigForNodeChange),
+			builder.WithPredicates(r.filter.GetNodePredicate()),
+		).
 		Named(DeviceConfigReconcilerName).
 		Complete(
 			reconcile.AsReconciler[*intelv1alpha1.DeviceConfig](mgr.GetClient(), r),
@@ -89,38 +91,46 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=nfd.k8s-sigs.io,resources=nodefeaturerules,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=nfd.openshift.io,resources=nodefeaturerules,verbs=create;delete;get;list;patch;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) (ctrl.Result, error) {
 	res := ctrl.Result{}
-
 	logger := log.FromContext(ctx).WithValues("DeviceConfig namespace", devConfig.Namespace, "DeviceConfig name", devConfig.Name)
 
 	if devConfig.GetDeletionTimestamp() != nil {
-		// DeviceConfig is being deleted
 		err := r.helper.finalizeDeviceConfig(ctx, devConfig)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to finalize DeviceConfig: %v", err)
+			return res, fmt.Errorf("failed to finalize DeviceConfig: %v", err)
 		}
-		return ctrl.Result{}, nil
+		return res, nil
 	}
 
-	err := r.helper.setFinalizer(ctx, devConfig)
-	if err != nil {
+	if err := r.helper.setFinalizer(ctx, devConfig); err != nil {
 		return res, fmt.Errorf("failed to set finalizer for DeviceConfig: %v", err)
 	}
-	
-	logger.Info("start KMM reconciliation")
-	err = r.helper.handleKMMModule(ctx, devConfig)
-	if err != nil {
+
+	logger.Info("reconciling NFD NodeFeatureRule")
+	if err := r.helper.handleNFDRule(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle NFD rule for DeviceConfig: %v", err)
+	}
+
+	logger.Info("reconciling KMM Module")
+	if err := r.helper.handleKMMModule(ctx, devConfig); err != nil {
 		return res, fmt.Errorf("failed to handle KMM module for DeviceConfig: %v", err)
 	}
-	logger.Info("start rolling upgrade reconciliation")
-        err = r.helper.handleModuleVersionUpgrade(ctx, devConfig)
-        if err != nil {
-                return res, fmt.Errorf("failed to handle KMM module version upgrade for DeviceConfig: %v", err)
-        }
-	
-	
+
+	logger.Info("reconciling XPU Manager")
+	if err := r.helper.handleXPUManager(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle XPU Manager for DeviceConfig: %v", err)
+	}
+
+	logger.Info("reconciling rolling upgrade")
+	if err := r.helper.handleModuleVersionUpgrade(ctx, devConfig); err != nil {
+		return res, fmt.Errorf("failed to handle KMM module version upgrade for DeviceConfig: %v", err)
+	}
+
 	return res, nil
 }
 
@@ -130,33 +140,34 @@ type deviceConfigReconcilerHelperAPI interface {
 	setFinalizer(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error
 	handleKMMModule(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error
 	handleModuleVersionUpgrade(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error
-	
-	
-	
+	handleNFDRule(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error
+	handleXPUManager(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error
 }
 
 type deviceConfigReconcilerHelper struct {
-	client     client.Client
-	kmmHandler kmmmodule.KMMModuleAPI
+	client         client.Client
+	kmmHandler     kmmmodule.KMMModuleAPI
 	upgradeHandler upgrade.UpgradeAPI
-	
-	
-	scheme     *runtime.Scheme
+	nfdHandler     nfd.NFDRuleAPI
+	xpuHandler     xpumanager.XPUManagerAPI
+	scheme         *runtime.Scheme
 }
 
-func newDeviceConfigReconcilerHelper(client client.Client,
+func newDeviceConfigReconcilerHelper(
+	client client.Client,
 	kmmHandler kmmmodule.KMMModuleAPI,
 	upgradeHandler upgrade.UpgradeAPI,
-	
-	
-	scheme     *runtime.Scheme) deviceConfigReconcilerHelperAPI {
+	nfdHandler nfd.NFDRuleAPI,
+	xpuHandler xpumanager.XPUManagerAPI,
+	scheme *runtime.Scheme,
+) deviceConfigReconcilerHelperAPI {
 	return &deviceConfigReconcilerHelper{
-		client:     client,
-		kmmHandler: kmmHandler,
+		client:         client,
+		kmmHandler:     kmmHandler,
 		upgradeHandler: upgradeHandler,
-		
-		
-		scheme:     scheme,
+		nfdHandler:     nfdHandler,
+		xpuHandler:     xpuHandler,
+		scheme:         scheme,
 	}
 }
 
@@ -172,19 +183,13 @@ func (dcrh *deviceConfigReconcilerHelper) setFinalizer(ctx context.Context, devC
 
 func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
 	logger := log.FromContext(ctx)
-	var err error
-	var namespacedName types.NamespacedName
-
-	
-
-	
 
 	mod := kmmv1beta1.Module{}
-	namespacedName = types.NamespacedName{
+	namespacedName := types.NamespacedName{
 		Namespace: devConfig.Namespace,
 		Name:      devConfig.Name,
 	}
-	err = dcrh.client.Get(ctx, namespacedName, &mod)
+	err := dcrh.client.Get(ctx, namespacedName, &mod)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			logger.Info("module already deleted, removing finalizer", "module", namespacedName)
@@ -198,8 +203,6 @@ func (dcrh *deviceConfigReconcilerHelper) finalizeDeviceConfig(ctx context.Conte
 	return dcrh.client.Delete(ctx, &mod)
 }
 
-
-
 func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
 	kmmMod := &kmmv1beta1.Module{
 		ObjectMeta: metav1.ObjectMeta{
@@ -211,47 +214,53 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 	opRes, err := controllerutil.CreateOrPatch(ctx, dcrh.client, kmmMod, func() error {
 		return dcrh.kmmHandler.SetKMMModuleAsDesired(kmmMod, devConfig)
 	})
-
 	if err == nil {
 		logger.Info("Reconciled KMM Module", "name", kmmMod.Name, "result", opRes)
 	}
-
 	return err
+}
 
+func (dcrh *deviceConfigReconcilerHelper) handleNFDRule(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	opRes, err := dcrh.nfdHandler.EnsureNodeFeatureRule(ctx, devConfig)
+	if err == nil {
+		logger.Info("Reconciled NFD NodeFeatureRule", "result", opRes)
+	}
+	return err
+}
+
+func (dcrh *deviceConfigReconcilerHelper) handleXPUManager(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
+	logger := log.FromContext(ctx)
+	opRes, err := dcrh.xpuHandler.EnsureXPUManagerDaemonSet(ctx, devConfig)
+	if err == nil {
+		logger.Info("Reconciled XPU Manager", "result", opRes)
+	}
+	return err
 }
 
 func (dcrh *deviceConfigReconcilerHelper) handleModuleVersionUpgrade(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
-        // check if rolling upgrade should be supported
-        if devConfig.Spec.Driver.Version == "" {
-                return nil
-        }
-        logger := log.FromContext(ctx)
-        targetedNodes, err := dcrh.upgradeHandler.GetTargetedNodes(ctx, devConfig)
-        if err != nil {
-                return fmt.Errorf("failed to get nodes targeted by the DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
-        }
+	if devConfig.Spec.Driver.Version == "" {
+		return nil
+	}
+	logger := log.FromContext(ctx)
+	targetedNodes, err := dcrh.upgradeHandler.GetTargetedNodes(ctx, devConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get nodes targeted by the DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
+	}
 
-        logger.Info("targeted nodes for rolling upgrade", "num nodes", len(targetedNodes))
+	logger.Info("targeted nodes for rolling upgrade", "num nodes", len(targetedNodes))
 
-        node := dcrh.upgradeHandler.GetUpgradedNode(ctx, devConfig, targetedNodes)
+	node := dcrh.upgradeHandler.GetUpgradedNode(ctx, devConfig, targetedNodes)
+	err = dcrh.upgradeHandler.UncordonUpgradedNode(ctx, node)
+	if err != nil {
+		return fmt.Errorf("failed to finalize upgraded nodes for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
+	}
 
-        err = dcrh.upgradeHandler.UncordonUpgradedNode(ctx, node)
-        if err != nil {
-                return fmt.Errorf("failed to finzalize upgraded nodes for DeviceConfig %s/%s: %v", devConfig.Namespace, devConfig.Name, err)
-        }
+	node = dcrh.upgradeHandler.GetNodeForUpgrade(ctx, devConfig, targetedNodes)
+	err = dcrh.upgradeHandler.CordonNodeForUpgrade(ctx, devConfig, node)
+	if err != nil {
+		return fmt.Errorf("failed to cordon node %s for DeviceConfig %s/%s: %v", node.Name, devConfig.Namespace, devConfig.Name, err)
+	}
 
-        node = dcrh.upgradeHandler.GetNodeForUpgrade(ctx, devConfig, targetedNodes)
-
-        err = dcrh.upgradeHandler.CordonNodeForUpgrade(ctx, devConfig, node)
-        if err != nil {
-                return fmt.Errorf("failed to cordon node %s for DeviceConfig %s/%s: %v", node.Name, devConfig.Namespace, devConfig.Name, err)
-        }
-
-        return dcrh.upgradeHandler.KickoffUpgrade(ctx, devConfig, node)
+	return dcrh.upgradeHandler.KickoffUpgrade(ctx, devConfig, node)
 }
-
-
-
-
-
-

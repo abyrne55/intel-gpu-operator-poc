@@ -37,9 +37,9 @@ import (
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/controllers"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/filter"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/kmmmodule"
-	
-	
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/nfd"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/upgrade"
+	"github.com/abyrne55/intel-gpu-operator-poc/internal/xpumanager"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -92,15 +92,17 @@ func main() {
 	client := mgr.GetClient()
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
 	upgradeHandler := upgrade.NewUpgradeAPI(client)
-	
-	
-        filter := filter.New(client)
+	nfdHandler := nfd.NewNFDRule(client, scheme)
+	xpuHandler := xpumanager.NewXPUManager(client, scheme)
+	filter := filter.New(client)
 	dcr := controllers.NewDeviceConfigReconciler(
 		client,
 		kmmHandler,
 		upgradeHandler,
+		nfdHandler,
+		xpuHandler,
 		filter,
-                scheme)
+		scheme)
 	if err = dcr.SetupWithManager(mgr); err != nil {
 		cmd.FatalError(setupLogger, err, "unable to create controller", "name", controllers.DeviceConfigReconcilerName)
 	}

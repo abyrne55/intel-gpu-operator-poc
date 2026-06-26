@@ -164,7 +164,7 @@ func (ui *upgradeImpl) KickoffUpgrade(ctx context.Context, devConfig *intelv1alp
 		nodeLabels = make(map[string]string)
 	}
 	nodeCopy := node.DeepCopy()
-	nodeLabels[kmmlabels.GetModuleVersionLabelName(devConfig.Namespace, devConfig.Name)] = devConfig.Spec.DriverVersion
+	nodeLabels[kmmlabels.GetModuleVersionLabelName(devConfig.Namespace, devConfig.Name)] = devConfig.Spec.Driver.Version
 	node.SetLabels(nodeLabels)
 	return ui.client.Patch(ctx, node, client.MergeFrom(nodeCopy))
 }
@@ -174,7 +174,7 @@ func (ui *upgradeImpl) RemoveUpgradeLabels(ctx context.Context, devConfig *intel
 	selectedNodes := v1.NodeList{}
 
 	upgradeLabelKey := kmmlabels.GetModuleVersionLabelName(devConfig.Namespace, devConfig.Name)
-	opt := client.MatchingLabels(map[string]string{upgradeLabelKey: devConfig.Spec.DriverVersion})
+	opt := client.MatchingLabels(map[string]string{upgradeLabelKey: devConfig.Spec.Driver.Version})
 	err := ui.client.List(ctx, &selectedNodes, opt)
 	if err != nil {
 		return fmt.Errorf("could not list nodes: %v", err)
@@ -196,11 +196,11 @@ func (ui *upgradeImpl) RemoveUpgradeLabels(ctx context.Context, devConfig *intel
 func getNodeUpgradeState(node v1.Node, devConfig *intelv1alpha1.DeviceConfig) nodeUpgradeState {
 	nodeLabels := node.GetLabels()
 	moduleVersion, ok := nodeLabels[kmmlabels.GetModuleVersionLabelName(devConfig.Namespace, devConfig.Name)]
-	if !ok || moduleVersion != devConfig.Spec.DriverVersion {
+	if !ok || moduleVersion != devConfig.Spec.Driver.Version {
 		return nodeBeforeUpgrade
 	}
 	moduleVersionReady, ok := nodeLabels[kmmlabels.GetKernelModuleVersionReadyNodeLabel(devConfig.Namespace, devConfig.Name)]
-	if !ok || moduleVersionReady != devConfig.Spec.DriverVersion {
+	if !ok || moduleVersionReady != devConfig.Spec.Driver.Version {
 		return nodeInUpgrade
 	}
 	return nodeUpgraded

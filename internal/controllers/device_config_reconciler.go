@@ -222,7 +222,7 @@ func (dcrh *deviceConfigReconcilerHelper) handleKMMModule(ctx context.Context, d
 
 func (dcrh *deviceConfigReconcilerHelper) handleModuleVersionUpgrade(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) error {
         // check if rolling upgrade should be supported
-        if devConfig.Spec.DriverVersion == "" {
+        if devConfig.Spec.Driver.Version == "" {
                 return nil
         }
         logger := log.FromContext(ctx)

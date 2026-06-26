@@ -44,8 +44,8 @@ var _ = Describe("setKMMModuleLoader", func() {
 		}
 		input := intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-                                DriversImage: "some image:tag",
-                        },
+				Driver: intelv1alpha1.DriverSpec{Image: "some image:tag"},
+			},
 		}
 
 		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
@@ -85,11 +85,9 @@ var _ = Describe("setKMMModuleLoader", func() {
 		}
 		input := intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				UseInTreeDrivers: false,
-				DriversImage:     "some driver image",
-				DriverVersion:   "some driver version",
-				Selector:         map[string]string{"some label": "some label value"},
-				ImageRepoSecret:  &v1.LocalObjectReference{Name: "image repo secret name"},
+				Driver:          intelv1alpha1.DriverSpec{Image: "some driver image", Version: "some driver version"},
+				Selector:        map[string]string{"some label": "some label value"},
+				ImageRepoSecret: &v1.LocalObjectReference{Name: "image repo secret name"},
 			},
 		}
 
@@ -104,8 +102,8 @@ var _ = Describe("setKMMModuleLoader", func() {
 		fmt.Printf("<%s>\n", expectedMod.Spec.ModuleLoader.Container.Modprobe.ModuleName)
 		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
 
-		expectedMod.Spec.ModuleLoader.Container.Version = input.Spec.DriverVersion
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = input.Spec.DriversImage + "-$KERNEL_VERSION"
+		expectedMod.Spec.ModuleLoader.Container.Version = input.Spec.Driver.Version
+		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = input.Spec.Driver.Image + "-$KERNEL_VERSION"
                 
                 expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build = nil
                 
@@ -162,7 +160,7 @@ var _ = Describe("setKMMDevicePlugin", func() {
 
 		input := intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DevicePluginImage: "some device plugin image",
+				DRA: intelv1alpha1.DRASpec{Image: "some device plugin image"},
 			},
 		}
 

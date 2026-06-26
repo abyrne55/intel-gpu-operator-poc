@@ -7,7 +7,7 @@ spec:
   devicePlugin:
     serviceAccountName: "intel-gpu-operator-kmm-device-plugin"
     container:
-      image: "placeholder"
+      image: ""
       volumeMounts:
       - name: sys
         mountPath: /sys

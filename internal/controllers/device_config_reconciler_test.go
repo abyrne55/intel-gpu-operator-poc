@@ -328,7 +328,7 @@ var _ = Describe("handleModuleVersionUpgrade", func() {
         ctx := context.Background()
         devConfig := &intelv1alpha1.DeviceConfig{
                 Spec: intelv1alpha1.DeviceConfigSpec{
-                        DriverVersion: "some verison",
+                        Driver: intelv1alpha1.DriverSpec{Version: "some verison"},
                 },
         }
         targetedNodes := []corev1.Node{

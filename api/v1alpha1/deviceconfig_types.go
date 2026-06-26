@@ -25,49 +25,58 @@ const (
 	PCIVendorID = "8086"
 )
 
-// DeviceConfigSpec describes how the AMD GPU operator should enable AMD GPU device for customer's use.
+type DriverSpec struct {
+	// +kubebuilder:default=true
+	UseInTreeDriver bool `json:"useInTreeDriver"`
+
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// +optional
+	Version string `json:"version,omitempty"`
+}
+
+type DRASpec struct {
+	// +kubebuilder:default="ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver:v0.9.0"
+	Image string `json:"image"`
+}
+
+type XPUManagerSpec struct {
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled"`
+
+	// +kubebuilder:default="ghcr.io/intel/xpumanager/xpumd:v2.0.0"
+	Image string `json:"image"`
+}
+
 type DeviceConfigSpec struct {
-	// if the in-tree driver should be used instead of OOT drivers
-	UseInTreeDrivers bool `json:"useInTreeDrivers,omitempty"`
-
-	// defines image that includes drivers and firmware blobs
 	// +optional
-	DriversImage string `json:"driversImage,omitempty"`
+	Driver DriverSpec `json:"driver,omitempty"`
 
-	// defines the Version of the neuron drivers. used for rolling upgrade
 	// +optional
-	DriverVersion string `json:"driverVersion,omitempty"`
+	DRA DRASpec `json:"dra,omitempty"`
 
-	// device plugin image
 	// +optional
-	DevicePluginImage string `json:"devicePluginImage,omitempty"`
+	XPUManager XPUManagerSpec `json:"xpuManager,omitempty"`
 
-	// pull secrets used for pull/setting images used by operator
 	// +optional
 	ImageRepoSecret *v1.LocalObjectReference `json:"imageRepoSecret,omitempty"`
 
-	// Selector describes on which nodes the GPU Operator should enable the GPU device.
 	// +optional
 	Selector map[string]string `json:"selector,omitempty"`
 }
 
-// DaemonSetStatus contains the status for a daemonset deployed during
-// reconciliation loop
 type DeploymentStatus struct {
-	// number of nodes that are targeted by the DeviceConfig selector
 	NodesMatchingSelectorNumber int32 `json:"nodesMatchingSelectorNumber,omitempty"`
-	// number of the pods that should be deployed for daemonset
-	DesiredNumber int32 `json:"desiredNumber,omitempty"`
-	// number of the actually deployed and running pods
-	AvailableNumber int32 `json:"availableNumber,omitempty"`
+	DesiredNumber               int32 `json:"desiredNumber,omitempty"`
+	AvailableNumber             int32 `json:"availableNumber,omitempty"`
 }
 
-// ModuleStatus defines the observed state of Module.
 type DeviceConfigStatus struct {
-	// DevicePlugin contains the status of the Device Plugin deployment
 	DevicePlugin DeploymentStatus `json:"devicePlugin,omitempty"`
-	// Driver contains the status of the Drivers deployment
-	Drivers DeploymentStatus `json:"driver"`
+	Drivers      DeploymentStatus `json:"driver"`
+	DRA          DeploymentStatus `json:"dra,omitempty"`
+	XPUManager   DeploymentStatus `json:"xpuManager,omitempty"`
 }
 
 //+kubebuilder:object:root=true

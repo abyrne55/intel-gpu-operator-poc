@@ -82,7 +82,7 @@ func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *in
 }
 
 func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) error {
-        driversImage := devConfig.Spec.DriversImage + "-$KERNEL_VERSION"
+        driversImage := devConfig.Spec.Driver.Image + "-$KERNEL_VERSION"
 
 	mod.Spec.ModuleLoader = &kmmv1beta1.ModuleLoaderSpec{
 		Container: kmmv1beta1.ModuleLoaderContainerSpec{
@@ -99,7 +99,7 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceC
 				},
 			},
 			ImagePullPolicy: v1.PullAlways,
-                        Version:         devConfig.Spec.DriverVersion,
+                        Version:         devConfig.Spec.Driver.Version,
 		},
 	}
 	mod.Spec.ModuleLoader.ServiceAccountName = "intel-gpu-operator-kmm-module-loader"
@@ -117,10 +117,7 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceC
 }
 
 func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) {
-	devicePluginImage := devConfig.Spec.DevicePluginImage
-	if devicePluginImage == "" {
-		devicePluginImage = defaultDevicePluginImage
-	}
+	devicePluginImage := devConfig.Spec.DRA.Image
 	hostPathDirectory := v1.HostPathDirectory
 	mod.Spec.DevicePlugin = &kmmv1beta1.DevicePluginSpec{
 		ServiceAccountName: "intel-gpu-operator-kmm-device-plugin",

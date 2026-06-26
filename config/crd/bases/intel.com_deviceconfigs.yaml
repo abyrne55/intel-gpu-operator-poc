@@ -39,21 +39,31 @@ spec:
           metadata:
             type: object
           spec:
-            description: DeviceConfigSpec describes how the AMD GPU operator should
-              enable AMD GPU device for customer's use.
             properties:
-              devicePluginImage:
-                description: device plugin image
-                type: string
-              driverVersion:
-                description: defines the Version of the neuron drivers. used for rolling
-                  upgrade
-                type: string
-              driversImage:
-                description: defines image that includes drivers and firmware blobs
-                type: string
+              dra:
+                properties:
+                  image:
+                    default: ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver:v0.9.0
+                    type: string
+                required:
+                - image
+                type: object
+              driver:
+                properties:
+                  image:
+                    type: string
+                  useInTreeDriver:
+                    default: true
+                    type: boolean
+                  version:
+                    type: string
+                required:
+                - useInTreeDriver
+                type: object
               imageRepoSecret:
-                description: pull secrets used for pull/setting images used by operator
+                description: |-
+                  LocalObjectReference contains enough information to let you locate the
+                  referenced object inside the same namespace.
                 properties:
                   name:
                     default: ""
@@ -69,48 +79,67 @@ spec:
               selector:
                 additionalProperties:
                   type: string
-                description: Selector describes on which nodes the GPU Operator should
-                  enable the GPU device.
                 type: object
-              useInTreeDrivers:
-                description: if the in-tree driver should be used instead of OOT drivers
-                type: boolean
+              xpuManager:
+                properties:
+                  enabled:
+                    default: true
+                    type: boolean
+                  image:
+                    default: ghcr.io/intel/xpumanager/xpumd:v2.0.0
+                    type: string
+                required:
+                - enabled
+                - image
+                type: object
             type: object
           status:
-            description: ModuleStatus defines the observed state of Module.
             properties:
               devicePlugin:
-                description: DevicePlugin contains the status of the Device Plugin
-                  deployment
                 properties:
                   availableNumber:
-                    description: number of the actually deployed and running pods
                     format: int32
                     type: integer
                   desiredNumber:
-                    description: number of the pods that should be deployed for daemonset
                     format: int32
                     type: integer
                   nodesMatchingSelectorNumber:
-                    description: number of nodes that are targeted by the DeviceConfig
-                      selector
+                    format: int32
+                    type: integer
+                type: object
+              dra:
+                properties:
+                  availableNumber:
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
                     format: int32
                     type: integer
                 type: object
               driver:
-                description: Driver contains the status of the Drivers deployment
                 properties:
                   availableNumber:
-                    description: number of the actually deployed and running pods
                     format: int32
                     type: integer
                   desiredNumber:
-                    description: number of the pods that should be deployed for daemonset
                     format: int32
                     type: integer
                   nodesMatchingSelectorNumber:
-                    description: number of nodes that are targeted by the DeviceConfig
-                      selector
+                    format: int32
+                    type: integer
+                type: object
+              xpuManager:
+                properties:
+                  availableNumber:
+                    format: int32
+                    type: integer
+                  desiredNumber:
+                    format: int32
+                    type: integer
+                  nodesMatchingSelectorNumber:
                     format: int32
                     type: integer
                 type: object

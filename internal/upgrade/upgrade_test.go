@@ -168,7 +168,7 @@ var _ = Describe("GetUpgradedNode", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DriverVersion: "v1.0.0",
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0.0"},
 			},
 		}
 	})
@@ -191,8 +191,8 @@ var _ = Describe("GetUpgradedNode", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node2",
 					Labels: map[string]string{
-						moduleVersionLabel:      devConfig.Spec.DriverVersion,
-						moduleVersionReadyLabel: devConfig.Spec.DriverVersion,
+						moduleVersionLabel:      devConfig.Spec.Driver.Version,
+						moduleVersionReadyLabel: devConfig.Spec.Driver.Version,
 					},
 				},
 			},
@@ -200,8 +200,8 @@ var _ = Describe("GetUpgradedNode", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node3",
 					Labels: map[string]string{
-						moduleVersionLabel:      devConfig.Spec.DriverVersion,
-						moduleVersionReadyLabel: devConfig.Spec.DriverVersion,
+						moduleVersionLabel:      devConfig.Spec.Driver.Version,
+						moduleVersionReadyLabel: devConfig.Spec.Driver.Version,
 					},
 				},
 				Spec: v1.NodeSpec{
@@ -367,7 +367,7 @@ var _ = Describe("GetNodeForUpgrade", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DriverVersion: "v1.0.0",
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0.0"},
 			},
 		}
 	})
@@ -408,7 +408,7 @@ var _ = Describe("GetNodeForUpgrade", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Labels: map[string]string{
-						moduleVersionLabel:      devConfig.Spec.DriverVersion,
+						moduleVersionLabel:      devConfig.Spec.Driver.Version,
 						moduleVersionReadyLabel: "v0.9.0",
 					},
 				},
@@ -428,8 +428,8 @@ var _ = Describe("GetNodeForUpgrade", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node1",
 					Labels: map[string]string{
-						moduleVersionLabel:      devConfig.Spec.DriverVersion,
-						moduleVersionReadyLabel: devConfig.Spec.DriverVersion,
+						moduleVersionLabel:      devConfig.Spec.Driver.Version,
+						moduleVersionReadyLabel: devConfig.Spec.Driver.Version,
 					},
 				},
 			},
@@ -491,7 +491,7 @@ var _ = Describe("CordonNodeForUpgrade", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DriverVersion: "v1.0.0",
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0.0"},
 			},
 		}
 	})
@@ -606,7 +606,7 @@ var _ = Describe("KickoffUpgrade", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DriverVersion: "v1.0.0",
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0.0"},
 			},
 		}
 
@@ -630,7 +630,7 @@ var _ = Describe("KickoffUpgrade", func() {
 			DoAndReturn(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 				patchedNode := obj.(*v1.Node)
 				Expect(patchedNode.Labels).To(HaveKey(moduleVersionLabel))
-				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.DriverVersion))
+				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.Driver.Version))
 				return nil
 			})
 
@@ -651,7 +651,7 @@ var _ = Describe("KickoffUpgrade", func() {
 				Expect(patchedNode.Labels).To(HaveKey("existing-label"))
 				Expect(patchedNode.Labels["existing-label"]).To(Equal("existing-value"))
 				Expect(patchedNode.Labels).To(HaveKey(moduleVersionLabel))
-				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.DriverVersion))
+				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.Driver.Version))
 				return nil
 			})
 
@@ -668,7 +668,7 @@ var _ = Describe("KickoffUpgrade", func() {
 			DoAndReturn(func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 				patchedNode := obj.(*v1.Node)
 				Expect(patchedNode.Labels).To(HaveKey(moduleVersionLabel))
-				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.DriverVersion))
+				Expect(patchedNode.Labels[moduleVersionLabel]).To(Equal(devConfig.Spec.Driver.Version))
 				return nil
 			})
 
@@ -700,7 +700,7 @@ var _ = Describe("getNodeUpgradeState", func() {
 				Namespace: "test-namespace",
 			},
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DriverVersion: "v1.0.0",
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0.0"},
 			},
 		}
 	})
@@ -739,7 +739,7 @@ var _ = Describe("getNodeUpgradeState", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-node",
 				Labels: map[string]string{
-					moduleVersionLabel:      devConfig.Spec.DriverVersion,
+					moduleVersionLabel:      devConfig.Spec.Driver.Version,
 					moduleVersionReadyLabel: "v0.9.0",
 				},
 			},
@@ -755,7 +755,7 @@ var _ = Describe("getNodeUpgradeState", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-node",
 				Labels: map[string]string{
-					moduleVersionLabel: devConfig.Spec.DriverVersion,
+					moduleVersionLabel: devConfig.Spec.Driver.Version,
 				},
 			},
 		}
@@ -771,8 +771,8 @@ var _ = Describe("getNodeUpgradeState", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-node",
 				Labels: map[string]string{
-					moduleVersionLabel:      devConfig.Spec.DriverVersion,
-					moduleVersionReadyLabel: devConfig.Spec.DriverVersion,
+					moduleVersionLabel:      devConfig.Spec.Driver.Version,
+					moduleVersionReadyLabel: devConfig.Spec.Driver.Version,
 				},
 			},
 		}

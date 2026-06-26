@@ -62,6 +62,7 @@ func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *in
 		}
 	} else {
 		mod.Spec.ModuleLoader = nil
+		mod.Spec.Tolerations = nil
 	}
 
 	setKMMDRA(mod, devConfig)
@@ -72,6 +73,9 @@ func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceC
 	driversImage := devConfig.Spec.Driver.Image
 	if driversImage == "" {
 		return fmt.Errorf("spec.driver.image is required when useInTreeDriver is false")
+	}
+	if devConfig.Spec.Driver.Version == "" {
+		return fmt.Errorf("spec.driver.version is required when useInTreeDriver is false")
 	}
 
 	mod.Spec.ModuleLoader = &kmmv1beta1.ModuleLoaderSpec{

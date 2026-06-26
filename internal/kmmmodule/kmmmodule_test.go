@@ -64,6 +64,19 @@ var _ = Describe("setKMMModuleLoader", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("spec.driver.image is required"))
 	})
+
+	It("should return error when driver version is empty", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				Driver: intelv1alpha1.DriverSpec{Image: "my-registry/xe-driver:v1.0"},
+			},
+		}
+
+		err := setKMMModuleLoader(&mod, devConfig)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.driver.version is required"))
+	})
 })
 
 var _ = Describe("setKMMDRA", func() {
@@ -153,6 +166,28 @@ var _ = Describe("setKMMDRA", func() {
 
 		Expect(mod.Spec.DRA.Container.VolumeMounts).To(HaveLen(6))
 		Expect(mod.Spec.DRA.Volumes).To(HaveLen(6))
+	})
+})
+
+var _ = Describe("SetKMMModuleAsDesired in-tree mode", func() {
+	It("should clear tolerations and ModuleLoader when switching to in-tree", func() {
+		mod := kmmv1beta1.Module{}
+		mod.Spec.Tolerations = []v1.Toleration{{Key: "stale-toleration"}}
+		mod.Spec.ModuleLoader = &kmmv1beta1.ModuleLoaderSpec{}
+
+		km := &kmmModule{scheme: scheme}
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				Driver: intelv1alpha1.DriverSpec{UseInTreeDriver: true},
+				DRA:    intelv1alpha1.DRASpec{Image: "test:latest"},
+			},
+		}
+
+		err := km.SetKMMModuleAsDesired(&mod, devConfig)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(mod.Spec.ModuleLoader).To(BeNil())
+		Expect(mod.Spec.Tolerations).To(BeNil())
+		Expect(mod.Spec.DRA).NotTo(BeNil())
 	})
 })
 

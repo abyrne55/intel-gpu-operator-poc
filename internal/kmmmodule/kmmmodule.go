@@ -35,9 +35,7 @@ const (
 	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
 	nodeVarLibFirmwarePath         = "/var/lib/firmware"
 	gpuDriverModuleName            = "xe"
-	imageFirmwarePath              = "placeholder"
-	defaultDevicePluginImage       = "placeholder"
-	defaultDriversImageTemplate    = "image-registry.openshift-image-registry.svc:5000/$MOD_NAMESPACE/intel_gpu_kmm_modules:%s-$KERNEL_VERSION"
+	imageFirmwarePath = "placeholder"
 )
 
 var (
@@ -142,10 +140,6 @@ func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceC
 			},
 		},
 	}
-}
-
-func getDockerfileCMName(devConfig *intelv1alpha1.DeviceConfig) string {
-	return "dockerfile-" + devConfig.Name
 }
 
 func getNodeSelector(devConfig *intelv1alpha1.DeviceConfig) map[string]string {

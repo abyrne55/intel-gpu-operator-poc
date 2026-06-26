@@ -18,23 +18,6 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - .intel.com
-  resources:
-  - deviceconfigs
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - .intel.com
-  resources:
-  - deviceconfigs/finalizers
-  verbs:
-  - update
-- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -45,6 +28,23 @@ rules:
   - list
   - patch
   - watch
+- apiGroups:
+  - intel.com
+  resources:
+  - deviceconfigs
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - intel.com
+  resources:
+  - deviceconfigs/finalizers
+  verbs:
+  - update
 - apiGroups:
   - kmm.sigs.x-k8s.io
   resources:

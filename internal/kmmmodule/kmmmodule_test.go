@@ -17,165 +17,161 @@ limitations under the License.
 package kmmmodule
 
 import (
-	"fmt"
-	"os"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
-        intelv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
+	intelv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/constants"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 )
 
 var _ = Describe("setKMMModuleLoader", func() {
-	It("KMM module creation - default input values", func() {
-		mod := kmmv1beta1.Module{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "moduleName",
-				Namespace: "moduleNamespace",
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Module",
-				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
-			},
-		}
-		input := intelv1alpha1.DeviceConfig{
+	It("should set ModuleLoader for OOT mode", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				Driver: intelv1alpha1.DriverSpec{Image: "some image:tag"},
+				Driver: intelv1alpha1.DriverSpec{
+					Image:   "my-registry/xe-driver:v1.0",
+					Version: "v1.0",
+				},
 			},
 		}
 
-		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
-		Expect(err).To(BeNil())
-		expectedMod := kmmv1beta1.Module{}
-		expectedJSON, err := yaml.YAMLToJSON(expectedYAMLFile)
-		Expect(err).To(BeNil())
-		err = yaml.Unmarshal(expectedJSON, &expectedMod)
-		Expect(err).To(BeNil())
-		fmt.Printf("<%s>\n", expectedMod.Name)
-		fmt.Printf("<%s>\n", expectedMod.Spec.ModuleLoader.Container.Modprobe.ModuleName)
-		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
+		err := setKMMModuleLoader(&mod, devConfig)
+		Expect(err).NotTo(HaveOccurred())
 
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = "some image:tag-$KERNEL_VERSION"
-		
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build = nil
-                
-		expectedMod.Spec.Selector = map[string]string{"feature.node.kubernetes.io/pci-8086.present": "true"}
-		expectedMod.Spec.Tolerations[0].Key = constants.UpgradeTaintTolerationKey
-
-		err = setKMMModuleLoader(&mod, &input)
-
-		Expect(err).To(BeNil())
-		Expect(mod).To(Equal(expectedMod))
+		Expect(mod.Spec.ModuleLoader).NotTo(BeNil())
+		Expect(mod.Spec.ModuleLoader.Container.Modprobe.ModuleName).To(Equal("xe"))
+		Expect(mod.Spec.ModuleLoader.Container.KernelMappings).To(HaveLen(1))
+		Expect(mod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage).To(Equal("my-registry/xe-driver:v1.0"))
+		Expect(mod.Spec.ModuleLoader.Container.KernelMappings[0].InTreeModulesToRemove).To(Equal([]string{"xe"}))
+		Expect(mod.Spec.ModuleLoader.Container.Version).To(Equal("v1.0"))
+		Expect(mod.Spec.ModuleLoader.ServiceAccountName).To(Equal("intel-gpu-operator-kmm-module-loader"))
+		Expect(mod.Spec.Tolerations).To(HaveLen(1))
+		Expect(mod.Spec.Tolerations[0].Key).To(Equal(constants.UpgradeTaintTolerationKey))
 	})
 
-	It("KMM module creation - user input values", func() {
-		mod := kmmv1beta1.Module{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "moduleName",
-				Namespace: "moduleNamespace",
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Module",
-				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
-			},
-		}
-		input := intelv1alpha1.DeviceConfig{
+	It("should return error when driver image is empty", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				Driver:          intelv1alpha1.DriverSpec{Image: "some driver image", Version: "some driver version"},
-				Selector:        map[string]string{"some label": "some label value"},
-				ImageRepoSecret: &v1.LocalObjectReference{Name: "image repo secret name"},
+				Driver: intelv1alpha1.DriverSpec{Version: "v1.0"},
 			},
 		}
 
-		expectedYAMLFile, err := os.ReadFile("testdata/module_loader_test.yaml")
-		Expect(err).To(BeNil())
-		expectedMod := kmmv1beta1.Module{}
-		expectedJSON, err := yaml.YAMLToJSON(expectedYAMLFile)
-		Expect(err).To(BeNil())
-		err = yaml.Unmarshal(expectedJSON, &expectedMod)
-		Expect(err).To(BeNil())
-		fmt.Printf("<%s>\n", expectedMod.Name)
-		fmt.Printf("<%s>\n", expectedMod.Spec.ModuleLoader.Container.Modprobe.ModuleName)
-		Expect(len(expectedMod.Spec.ModuleLoader.Container.KernelMappings)).To(Equal(1))
-
-		expectedMod.Spec.ModuleLoader.Container.Version = input.Spec.Driver.Version
-		expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].ContainerImage = input.Spec.Driver.Image + "-$KERNEL_VERSION"
-                
-                expectedMod.Spec.ModuleLoader.Container.KernelMappings[0].Build = nil
-                
-		expectedMod.Spec.Selector = map[string]string{"some label": "some label value"}
-		expectedMod.Spec.ImageRepoSecret = &v1.LocalObjectReference{Name: "image repo secret name"}
-                expectedMod.Spec.Tolerations[0].Key = constants.UpgradeTaintTolerationKey
-
-		err = setKMMModuleLoader(&mod, &input)
-
-		Expect(err).To(BeNil())
-		Expect(mod).To(Equal(expectedMod))
+		err := setKMMModuleLoader(&mod, devConfig)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.driver.image is required"))
 	})
 })
 
-var _ = Describe("setKMMDevicePlugin", func() {
-	It("KMM module creation - default input values", func() {
+var _ = Describe("setKMMDRA", func() {
+	It("should configure DRA with correct driver name and DeviceClasses", func() {
 		mod := kmmv1beta1.Module{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "moduleName",
-				Namespace: "moduleNamespace",
+				Name:      "test-module",
+				Namespace: "test-ns",
 			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Module",
-				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
+		}
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				DRA: intelv1alpha1.DRASpec{
+					Image: "ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver:v0.9.0",
+				},
 			},
 		}
 
-		input := intelv1alpha1.DeviceConfig{}
+		setKMMDRA(&mod, devConfig)
 
-		expectedYAMLFile, err := os.ReadFile("testdata/device_plugin_test.yaml")
-		Expect(err).To(BeNil())
-		expectedMod := kmmv1beta1.Module{}
-		expectedJSON, err := yaml.YAMLToJSON(expectedYAMLFile)
-		Expect(err).To(BeNil())
-		err = yaml.Unmarshal(expectedJSON, &expectedMod)
-		Expect(err).To(BeNil())
-
-		setKMMDevicePlugin(&mod, &input)
-
-		Expect(mod).To(Equal(expectedMod))
+		Expect(mod.Spec.DRA).NotTo(BeNil())
+		Expect(mod.Spec.DevicePlugin).To(BeNil())
+		Expect(mod.Spec.DRA.DriverName).To(Equal("gpu.intel.com"))
+		Expect(mod.Spec.DRA.Container.Image).To(Equal(devConfig.Spec.DRA.Image))
+		Expect(mod.Spec.DRA.Container.Command).To(Equal([]string{"/kubelet-gpu-plugin"}))
+		Expect(mod.Spec.DRA.Container.ImagePullPolicy).To(Equal(v1.PullIfNotPresent))
 	})
 
-	It("KMM module creation - user input values", func() {
-		mod := kmmv1beta1.Module{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "moduleName",
-				Namespace: "moduleNamespace",
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Module",
-				APIVersion: "kmm.sigs.x-k8s.io/v1beta1",
-			},
-		}
-
-		input := intelv1alpha1.DeviceConfig{
+	It("should set correct environment variables", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
 			Spec: intelv1alpha1.DeviceConfigSpec{
-				DRA: intelv1alpha1.DRASpec{Image: "some device plugin image"},
+				DRA: intelv1alpha1.DRASpec{Image: "test:latest"},
 			},
 		}
 
-		expectedYAMLFile, err := os.ReadFile("testdata/device_plugin_test.yaml")
-		Expect(err).To(BeNil())
-		expectedMod := kmmv1beta1.Module{}
-		expectedJSON, err := yaml.YAMLToJSON(expectedYAMLFile)
-		Expect(err).To(BeNil())
-		err = yaml.Unmarshal(expectedJSON, &expectedMod)
-		Expect(err).To(BeNil())
+		setKMMDRA(&mod, devConfig)
 
-		expectedMod.Spec.DevicePlugin.Container.Image = "some device plugin image"
+		env := mod.Spec.DRA.Container.Env
+		Expect(env).To(HaveLen(3))
 
-		setKMMDevicePlugin(&mod, &input)
+		nodeNameEnv := env[0]
+		Expect(nodeNameEnv.Name).To(Equal("NODE_NAME"))
+		Expect(nodeNameEnv.ValueFrom.FieldRef.FieldPath).To(Equal("spec.nodeName"))
 
-		Expect(mod).To(Equal(expectedMod))
+		podNSEnv := env[1]
+		Expect(podNSEnv.Name).To(Equal("POD_NAMESPACE"))
+		Expect(podNSEnv.ValueFrom.FieldRef.FieldPath).To(Equal("metadata.namespace"))
+
+		sysfsEnv := env[2]
+		Expect(sysfsEnv.Name).To(Equal("SYSFS_ROOT"))
+		Expect(sysfsEnv.Value).To(Equal("/sysfs"))
+	})
+
+	It("should create two DeviceClasses with correct CEL selectors", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				DRA: intelv1alpha1.DRASpec{Image: "test:latest"},
+			},
+		}
+
+		setKMMDRA(&mod, devConfig)
+
+		Expect(mod.Spec.DRA.DeviceClasses).To(HaveLen(2))
+
+		gpuClass := mod.Spec.DRA.DeviceClasses[0]
+		Expect(gpuClass.Name).To(Equal("gpu.intel.com"))
+		Expect(gpuClass.Selectors).To(HaveLen(1))
+		Expect(gpuClass.Selectors[0].CEL.Expression).To(Equal(`device.driver == "gpu.intel.com"`))
+
+		vfioClass := mod.Spec.DRA.DeviceClasses[1]
+		Expect(vfioClass.Name).To(Equal("gpu-vfio.intel.com"))
+		Expect(vfioClass.Selectors).To(HaveLen(1))
+		Expect(vfioClass.Selectors[0].CEL.Expression).To(Equal(`device.driver == "gpu.intel.com"`))
+	})
+
+	It("should configure 6 volume mounts and 6 volumes", func() {
+		mod := kmmv1beta1.Module{}
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				DRA: intelv1alpha1.DRASpec{Image: "test:latest"},
+			},
+		}
+
+		setKMMDRA(&mod, devConfig)
+
+		Expect(mod.Spec.DRA.Container.VolumeMounts).To(HaveLen(6))
+		Expect(mod.Spec.DRA.Volumes).To(HaveLen(6))
+	})
+})
+
+var _ = Describe("getNodeSelector", func() {
+	It("should return custom selector when set", func() {
+		devConfig := &intelv1alpha1.DeviceConfig{
+			Spec: intelv1alpha1.DeviceConfigSpec{
+				Selector: map[string]string{"custom-label": "value"},
+			},
+		}
+
+		sel := getNodeSelector(devConfig)
+		Expect(sel).To(Equal(map[string]string{"custom-label": "value"}))
+	})
+
+	It("should return PCI vendor selector as default", func() {
+		devConfig := &intelv1alpha1.DeviceConfig{}
+
+		sel := getNodeSelector(devConfig)
+		Expect(sel).To(HaveKey("feature.node.kubernetes.io/pci-8086.present"))
 	})
 })

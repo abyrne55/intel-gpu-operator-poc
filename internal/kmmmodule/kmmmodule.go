@@ -17,35 +17,26 @@ limitations under the License.
 package kmmmodule
 
 import (
-	_ "embed"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 	intelv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/constants"
+	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
 )
 
 const (
-	kubeletDevicePluginsVolumeName = "kubelet-device-plugins"
-	kubeletDevicePluginsPath       = "/var/lib/kubelet/device-plugins"
-	nodeVarLibFirmwarePath         = "/var/lib/firmware"
-	gpuDriverModuleName            = "xe"
-	imageFirmwarePath = "placeholder"
-)
-
-var (
-	//go:embed dockerfiles/driversDockerfile.txt
-	buildDockerfile string
+	gpuDriverModuleName = "xe"
+	draDriverName       = "gpu.intel.com"
 )
 
 //go:generate mockgen -source=kmmmodule.go -package=kmmmodule -destination=mock_kmmmodule.go KMMModuleAPI
 type KMMModuleAPI interface {
-	SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *intelv1alpha1.DeviceConfig) error
 	SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) error
 }
 
@@ -61,84 +52,123 @@ func NewKMMModule(client client.Client, scheme *runtime.Scheme) KMMModuleAPI {
 	}
 }
 
-func (km *kmmModule) SetBuildConfigMapAsDesired(buildCM *v1.ConfigMap, devConfig *intelv1alpha1.DeviceConfig) error {
-	if buildCM.Data == nil {
-		buildCM.Data = make(map[string]string)
-	}
-
-	buildCM.Data["dockerfile"] = buildDockerfile
-	return controllerutil.SetControllerReference(devConfig, buildCM, km.scheme)
-}
-
 func (km *kmmModule) SetKMMModuleAsDesired(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) error {
-	err := setKMMModuleLoader(mod, devConfig)
-	if err != nil {
-		return fmt.Errorf("failed to set KMM Module: %v", err)
+	mod.Spec.Selector = getNodeSelector(devConfig)
+	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
+
+	if !devConfig.Spec.Driver.UseInTreeDriver {
+		if err := setKMMModuleLoader(mod, devConfig); err != nil {
+			return fmt.Errorf("failed to set KMM ModuleLoader: %v", err)
+		}
+	} else {
+		mod.Spec.ModuleLoader = nil
 	}
-	setKMMDevicePlugin(mod, devConfig)
+
+	setKMMDRA(mod, devConfig)
 	return controllerutil.SetControllerReference(devConfig, mod, km.scheme)
 }
 
 func setKMMModuleLoader(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) error {
-        driversImage := devConfig.Spec.Driver.Image + "-$KERNEL_VERSION"
+	driversImage := devConfig.Spec.Driver.Image
+	if driversImage == "" {
+		return fmt.Errorf("spec.driver.image is required when useInTreeDriver is false")
+	}
 
 	mod.Spec.ModuleLoader = &kmmv1beta1.ModuleLoaderSpec{
 		Container: kmmv1beta1.ModuleLoaderContainerSpec{
 			Modprobe: kmmv1beta1.ModprobeSpec{
-				ModuleName:   gpuDriverModuleName,
-				FirmwarePath: imageFirmwarePath,
+				ModuleName: gpuDriverModuleName,
 			},
 			KernelMappings: []kmmv1beta1.KernelMapping{
 				{
 					Regexp:               "^.+$",
 					ContainerImage:       driversImage,
-					InTreeModulesToRemove: []string{gpuDriverModuleName,},
-                                        
+					InTreeModulesToRemove: []string{gpuDriverModuleName},
 				},
 			},
 			ImagePullPolicy: v1.PullAlways,
-                        Version:         devConfig.Spec.Driver.Version,
+			Version:         devConfig.Spec.Driver.Version,
+		},
+		ServiceAccountName: "intel-gpu-operator-kmm-module-loader",
+	}
+
+	mod.Spec.Tolerations = []v1.Toleration{
+		{
+			Key:      constants.UpgradeTaintTolerationKey,
+			Value:    "true",
+			Operator: v1.TolerationOpEqual,
+			Effect:   v1.TaintEffectNoExecute,
 		},
 	}
-	mod.Spec.ModuleLoader.ServiceAccountName = "intel-gpu-operator-kmm-module-loader"
-	mod.Spec.ImageRepoSecret = devConfig.Spec.ImageRepoSecret
-	mod.Spec.Selector = getNodeSelector(devConfig)
-	mod.Spec.Tolerations = []v1.Toleration{
-                {
-                        Key:      constants.UpgradeTaintTolerationKey,
-                        Value:    "true",
-                        Operator: v1.TolerationOpEqual,
-                        Effect:   v1.TaintEffectNoExecute,
-                },
-        }
 	return nil
 }
 
-func setKMMDevicePlugin(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) {
-	devicePluginImage := devConfig.Spec.DRA.Image
-	hostPathDirectory := v1.HostPathDirectory
-	mod.Spec.DevicePlugin = &kmmv1beta1.DevicePluginSpec{
-		ServiceAccountName: "intel-gpu-operator-kmm-device-plugin",
-		Container: kmmv1beta1.DevicePluginContainerSpec{
-			Image: devicePluginImage,
-			VolumeMounts: []v1.VolumeMount{
+func setKMMDRA(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) {
+	draImage := devConfig.Spec.DRA.Image
+	celExpression := fmt.Sprintf("device.driver == %q", draDriverName)
+
+	mod.Spec.DevicePlugin = nil
+	mod.Spec.DRA = &kmmv1beta1.DRASpec{
+		DriverName:         draDriverName,
+		ServiceAccountName: "intel-gpu-resource-driver-service-account",
+		Container: kmmv1beta1.CommonContainerSpec{
+			Image:           draImage,
+			ImagePullPolicy: v1.PullIfNotPresent,
+			Command:         []string{"/kubelet-gpu-plugin"},
+			Env: []v1.EnvVar{
 				{
-					Name:      "sys",
-					MountPath: "/sys",
-				},
-			},
-		},
-		Volumes: []v1.Volume{
-			{
-				Name: "sys",
-				VolumeSource: v1.VolumeSource{
-					HostPath: &v1.HostPathVolumeSource{
-						Path: "/sys",
-						Type: &hostPathDirectory,
+					Name: "NODE_NAME",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{FieldPath: "spec.nodeName"},
 					},
 				},
+				{
+					Name: "POD_NAMESPACE",
+					ValueFrom: &v1.EnvVarSource{
+						FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.namespace"},
+					},
+				},
+				{
+					Name:  "SYSFS_ROOT",
+					Value: "/sysfs",
+				},
+			},
+			VolumeMounts: []v1.VolumeMount{
+				{Name: "plugins-registry", MountPath: "/var/lib/kubelet/plugins_registry"},
+				{Name: "plugins", MountPath: "/var/lib/kubelet/plugins"},
+				{Name: "cdi", MountPath: "/etc/cdi"},
+				{Name: "varruncdi", MountPath: "/var/run/cdi"},
+				{Name: "xpumdrundir", MountPath: "/run/xpumd"},
+				{Name: "sysfs", MountPath: "/sysfs"},
 			},
 		},
+		Volumes: draVolumes(),
+		DeviceClasses: []kmmv1beta1.DeviceClassSpec{
+			{
+				Name: "gpu.intel.com",
+				Selectors: []resourcev1.DeviceSelector{
+					{CEL: &resourcev1.CELDeviceSelector{Expression: celExpression}},
+				},
+			},
+			{
+				Name: "gpu-vfio.intel.com",
+				Selectors: []resourcev1.DeviceSelector{
+					{CEL: &resourcev1.CELDeviceSelector{Expression: celExpression}},
+				},
+			},
+		},
+	}
+}
+
+func draVolumes() []v1.Volume {
+	directoryOrCreate := v1.HostPathDirectoryOrCreate
+	return []v1.Volume{
+		{Name: "plugins-registry", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/lib/kubelet/plugins_registry"}}},
+		{Name: "plugins", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/lib/kubelet/plugins"}}},
+		{Name: "cdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/cdi"}}},
+		{Name: "varruncdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/run/cdi"}}},
+		{Name: "sysfs", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/sys"}}},
+		{Name: "xpumdrundir", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/run/xpumd", Type: &directoryOrCreate}}},
 	}
 }
 
@@ -147,7 +177,7 @@ func getNodeSelector(devConfig *intelv1alpha1.DeviceConfig) map[string]string {
 		return devConfig.Spec.Selector
 	}
 
-	ns := make(map[string]string, 0)
-	ns[fmt.Sprintf("feature.node.kubernetes.io/pci-%s.present", intelv1alpha1.PCIVendorID)] = "true"
-	return ns
+	return map[string]string{
+		fmt.Sprintf("feature.node.kubernetes.io/pci-%s.present", intelv1alpha1.PCIVendorID): "true",
+	}
 }

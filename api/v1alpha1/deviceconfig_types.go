@@ -73,10 +73,9 @@ type DeploymentStatus struct {
 }
 
 type DeviceConfigStatus struct {
-	DevicePlugin DeploymentStatus `json:"devicePlugin,omitempty"`
-	Drivers      DeploymentStatus `json:"driver"`
-	DRA          DeploymentStatus `json:"dra,omitempty"`
-	XPUManager   DeploymentStatus `json:"xpuManager,omitempty"`
+	Drivers    DeploymentStatus `json:"driver,omitempty"`
+	DRA        DeploymentStatus `json:"dra,omitempty"`
+	XPUManager DeploymentStatus `json:"xpuManager,omitempty"`
 }
 
 //+kubebuilder:object:root=true

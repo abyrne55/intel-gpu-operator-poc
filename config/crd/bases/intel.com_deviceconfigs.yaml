@@ -95,18 +95,6 @@ spec:
             type: object
           status:
             properties:
-              devicePlugin:
-                properties:
-                  availableNumber:
-                    format: int32
-                    type: integer
-                  desiredNumber:
-                    format: int32
-                    type: integer
-                  nodesMatchingSelectorNumber:
-                    format: int32
-                    type: integer
-                type: object
               dra:
                 properties:
                   availableNumber:
@@ -143,8 +131,6 @@ spec:
                     format: int32
                     type: integer
                 type: object
-            required:
-            - driver
             type: object
         type: object
     served: true

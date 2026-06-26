@@ -8,6 +8,8 @@ rules:
   - ""
   resources:
   - configmaps
+  - serviceaccounts
+  - services
   verbs:
   - create
   - delete
@@ -63,3 +65,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - nfd.k8s-sigs.io
+  resources:
+  - nodefeaturerules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch

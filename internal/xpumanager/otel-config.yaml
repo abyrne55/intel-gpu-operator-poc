@@ -1,0 +1,125 @@
+receivers:
+  # The Intel XPU receiver.
+  intelxpu:
+    # Metrics data collection interval.
+    # Must be at least twice the sampling_interval.
+    collection_interval: 5s
+    # Initial start delay for metrics collection, any non positive value is assumed to be immediately.
+    initial_delay: 1s
+    # Metrics collection timeout.
+    timeout: 0
+    # Sampling interval for the high-frequency metrics.
+    sampling_interval: 1s
+    # Configuration for enabling/disabling individual metrics.
+    # See receiver/intelxpu/sysman/documentation.md for list of available metrics.
+    metrics:
+#      hw.memory.size:
+#        enabled: false
+
+processors:
+  intelxpustatus:
+    rules:
+      - name: "Intel GPU core temperature health"
+        source_metric: "hw.temperature"
+        parent_metric: "hw.gpu.info"
+        parent_ref_attribute: "hw.id"
+        parent_filters:
+          - key: "pci.vendor_id"
+            values: ["8086"]
+        component_filters:
+          - key: "hw.sensor_location"
+            values: ["gpu"]
+        copy_attributes: ["hw.id", "hw.name", "pci.bdf", "hw.sensor_location", "com.intel.subdevice_id"]
+        add_attributes:
+          hw.type: "temperature"
+        # Ordered list of state rules. The rules should be ordered by increasing severity.
+        # All rules are evaluated, the last matching one will be active.
+        states:
+          # Default state
+          - state_name: "ok"
+          - state_name: "critical"
+            conditions:
+              - value: 100.0
+      - name: "Intel GPU memory temperature health"
+        source_metric: "hw.temperature"
+        parent_metric: "hw.gpu.info"
+        parent_ref_attribute: "hw.id"
+        parent_filters:
+          - key: "pci.vendor_id"
+            values: ["8086"]
+        component_filters:
+          - key: "hw.sensor_location"
+            values: ["memory"]
+        copy_attributes: ["hw.id", "hw.name", "pci.bdf", "hw.sensor_location", "com.intel.subdevice_id"]
+        add_attributes:
+          hw.type: "temperature"
+        # Ordered list of state rules. The rules should be ordered by increasing severity.
+        # All rules are evaluated, the last matching one will be active.
+        states:
+          # Default state
+          - state_name: "ok"
+          - state_name: "critical"
+            conditions:
+              - value: 100.0
+
+exporters:
+  intelxpuinfo:
+    endpoint: "/run/xpumd/intelxpuinfo.sock"
+    hw_status_mappings:
+      - health_domain: "memory"
+        filters:
+          - key: hw.type
+            values: [memory]
+        state_mapping:
+          unknown:
+            severity: unknown
+          ok:
+            severity: ok
+          degraded:
+            severity: warning
+          critical:
+            severity: critical
+          replace:
+            severity: critical
+          "*":
+            severity: warning
+            message: "Unexpected memory health state, mapped to warning"
+      # Filter out (by using empty state_mapping) ECC states that are not indicative of device health
+      - health_domain: "gpu"
+        filters:
+          - key: hw.type
+            values: [gpu]
+          - key: hw.state
+            values: [ecc_disabled, ecc_enabled, ecc_available, ecc_unavailable]
+        state_mapping: {}
+      - health_domain: "{{ .hw_type }}"
+        state_mapping:
+          unknown:
+            severity: unknown
+          ok:
+            severity: ok
+          warning:
+            severity: warning
+          critical:
+            severity: critical
+          failed:
+            severity: failed
+          "*":
+            severity: warning
+  prometheus:
+    endpoint: "0.0.0.0:8080"
+
+extensions:
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    metrics:
+      receivers: [intelxpu]
+      processors: [intelxpustatus]
+      exporters: [intelxpuinfo,prometheus]
+    logs:
+      receivers: [intelxpu]
+      exporters: [intelxpuinfo]

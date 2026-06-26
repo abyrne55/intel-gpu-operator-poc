@@ -74,6 +74,8 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&intelv1alpha1.DeviceConfig{}).
 		Owns(&kmmv1beta1.Module{}).
 		Owns(&appsv1.DaemonSet{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
 		Watches(
 			&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(r.filter.FindDeviceConfigForNodeChange),
@@ -92,8 +94,8 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=core,resources=services,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=nfd.k8s-sigs.io,resources=nodefeaturerules,verbs=create;delete;get;list;patch;watch
-//+kubebuilder:rbac:groups=nfd.openshift.io,resources=nodefeaturerules,verbs=create;delete;get;list;patch;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) (ctrl.Result, error) {
 	res := ctrl.Result{}

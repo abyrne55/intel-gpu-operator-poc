@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+	nfdv1alpha1 "sigs.k8s.io/node-feature-discovery/api/nfd/v1alpha1"
 )
 
 func TestScheme() (*runtime.Scheme, error) {
@@ -36,6 +37,7 @@ func TestScheme() (*runtime.Scheme, error) {
 		hubv1beta1.AddToScheme,
 		clusterv1.Install,
 		workv1.Install,
+		nfdv1alpha1.AddToScheme,
 	}
 
 	for _, f := range funcs {

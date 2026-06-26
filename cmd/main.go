@@ -20,6 +20,7 @@ import (
 	"flag"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	runtimeschema "k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2/textlogger"
@@ -31,6 +32,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	kmmv1beta1 "github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1"
+	nfdv1alpha1 "sigs.k8s.io/node-feature-discovery/api/nfd/v1alpha1"
 	dcv1alpha1 "github.com/abyrne55/intel-gpu-operator-poc/api/v1alpha1"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/cmd"
 	"github.com/abyrne55/intel-gpu-operator-poc/internal/config"
@@ -53,6 +55,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dcv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(kmmv1beta1.AddToScheme(scheme))
+	utilruntime.Must(nfdv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -93,7 +96,19 @@ func main() {
 	kmmHandler := kmmmodule.NewKMMModule(client, scheme)
 	upgradeHandler := upgrade.NewUpgradeAPI(client)
 	nfdHandler := nfd.NewNFDRule(client, scheme)
-	xpuHandler := xpumanager.NewXPUManager(client, scheme)
+
+	serviceMonitorAvailable := false
+	_, err = mgr.GetRESTMapper().RESTMapping(
+		runtimeschema.GroupKind{Group: "monitoring.coreos.com", Kind: "ServiceMonitor"},
+		"v1",
+	)
+	if err == nil {
+		serviceMonitorAvailable = true
+		setupLogger.Info("ServiceMonitor CRD detected, will create ServiceMonitor for XPU Manager")
+	} else {
+		setupLogger.Info("ServiceMonitor CRD not found, skipping ServiceMonitor creation")
+	}
+	xpuHandler := xpumanager.NewXPUManager(client, scheme, serviceMonitorAvailable)
 	filter := filter.New(client)
 	dcr := controllers.NewDeviceConfigReconciler(
 		client,

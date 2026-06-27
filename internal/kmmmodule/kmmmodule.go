@@ -142,7 +142,7 @@ func setKMMDRA(mod *kmmv1beta1.Module, devConfig *intelv1alpha1.DeviceConfig) {
 				{Name: "plugins", MountPath: "/var/lib/kubelet/plugins"},
 				{Name: "cdi", MountPath: "/etc/cdi"},
 				{Name: "varruncdi", MountPath: "/var/run/cdi"},
-				{Name: "xpumdrundir", MountPath: "/run/xpumd"},
+				{Name: "xpumdrundir", MountPath: "/var/run/xpumd"},
 				{Name: "sysfs", MountPath: "/sysfs"},
 			},
 		},
@@ -169,10 +169,10 @@ func draVolumes() []v1.Volume {
 	return []v1.Volume{
 		{Name: "plugins-registry", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/lib/kubelet/plugins_registry"}}},
 		{Name: "plugins", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/lib/kubelet/plugins"}}},
-		{Name: "cdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/etc/cdi"}}},
-		{Name: "varruncdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/run/cdi"}}},
+		{Name: "cdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/opt/cdi", Type: &directoryOrCreate}}},
+		{Name: "varruncdi", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/run/cdi", Type: &directoryOrCreate}}},
 		{Name: "sysfs", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/sys"}}},
-		{Name: "xpumdrundir", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/run/xpumd", Type: &directoryOrCreate}}},
+		{Name: "xpumdrundir", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/run/xpumd", Type: &directoryOrCreate}}},
 	}
 }
 
@@ -182,6 +182,6 @@ func getNodeSelector(devConfig *intelv1alpha1.DeviceConfig) map[string]string {
 	}
 
 	return map[string]string{
-		fmt.Sprintf("feature.node.kubernetes.io/pci-%s.present", intelv1alpha1.PCIVendorID): "true",
+		"intel.feature.node.kubernetes.io/gpu": "true",
 	}
 }

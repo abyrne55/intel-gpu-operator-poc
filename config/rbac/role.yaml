@@ -18,6 +18,14 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -46,6 +54,14 @@ rules:
   verbs:
   - update
 - apiGroups:
+  - intel.com
+  resources:
+  - deviceconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - kmm.sigs.x-k8s.io
   resources:
   - modules
@@ -66,9 +82,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
   - nfd.k8s-sigs.io
   resources:
   - nodefeaturerules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
   verbs:
   - create
   - delete

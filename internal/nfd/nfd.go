@@ -34,10 +34,11 @@ func NewNFDRule(client client.Client, scheme *runtime.Scheme) NFDRuleAPI {
 	return &nfdRule{client: client, scheme: scheme}
 }
 
-func (n *nfdRule) EnsureNodeFeatureRule(ctx context.Context, _ *intelv1alpha1.DeviceConfig) (controllerutil.OperationResult, error) {
+func (n *nfdRule) EnsureNodeFeatureRule(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) (controllerutil.OperationResult, error) {
 	nfr := &nfdv1alpha1.NodeFeatureRule{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: nfrName,
+			Name:      nfrName,
+			Namespace: devConfig.Namespace,
 		},
 	}
 

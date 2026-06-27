@@ -56,6 +56,12 @@ func init() {
 	utilruntime.Must(dcv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(kmmv1beta1.AddToScheme(scheme))
 	utilruntime.Must(nfdv1alpha1.AddToScheme(scheme))
+	// NFD's AddToScheme omits list types; register them for the controller-runtime cache.
+	scheme.AddKnownTypes(nfdv1alpha1.SchemeGroupVersion,
+		&nfdv1alpha1.NodeFeatureRuleList{},
+		&nfdv1alpha1.NodeFeatureList{},
+		&nfdv1alpha1.NodeFeatureGroupList{},
+	)
 	//+kubebuilder:scaffold:scheme
 }
 

@@ -88,14 +88,18 @@ func (r *DeviceConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 //+kubebuilder:rbac:groups=intel.com,resources=deviceconfigs,verbs=get;list;watch;create;patch;update
-//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
+//+kubebuilder:rbac:groups=intel.com,resources=deviceconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=intel.com,resources=deviceconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;patch;update;delete
 //+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch;create
+//+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=create;delete;get;list;patch;watch
 //+kubebuilder:rbac:groups=nfd.k8s-sigs.io,resources=nodefeaturerules,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=create;delete;get;list;patch;watch
+//+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=create;delete;get;list;patch;watch
 
 func (r *DeviceConfigReconciler) Reconcile(ctx context.Context, devConfig *intelv1alpha1.DeviceConfig) (ctrl.Result, error) {
 	res := ctrl.Result{}

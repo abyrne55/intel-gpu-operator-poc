@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: controller-manager-config
+  namespace: system
+data:
+  controller_manager_config.yaml: |
+    healthProbeBindAddress: :8081
+    metricsBindAddress: :8443
+    leaderElection:
+      enabled: true
+      resourceID: intel-gpu-operator.intel.com

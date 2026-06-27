@@ -130,8 +130,8 @@ func (x *xpuManager) ensureDaemonSet(ctx context.Context, devConfig *intelv1alph
 
 		automount := false
 		runAsUser := int64(0)
-		readOnly := true
-		noEscalation := false
+		privileged := true
+		readOnly := false
 		directoryOrCreate := corev1.HostPathDirectoryOrCreate
 		seccompRuntime := corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
 
@@ -154,13 +154,9 @@ func (x *xpuManager) ensureDaemonSet(ctx context.Context, devConfig *intelv1alph
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						Args:            []string{"--config=/etc/xpumd/config.yaml"},
 						SecurityContext: &corev1.SecurityContext{
-							RunAsUser:                &runAsUser,
-							ReadOnlyRootFilesystem:   &readOnly,
-							AllowPrivilegeEscalation: &noEscalation,
-							Capabilities: &corev1.Capabilities{
-								Drop: []corev1.Capability{"ALL"},
-								Add:  []corev1.Capability{"SYS_ADMIN"},
-							},
+							Privileged:             &privileged,
+							RunAsUser:              &runAsUser,
+							ReadOnlyRootFilesystem: &readOnly,
 						},
 						Ports: []corev1.ContainerPort{
 							{
@@ -182,6 +178,7 @@ func (x *xpuManager) ensureDaemonSet(ctx context.Context, devConfig *intelv1alph
 						VolumeMounts: []corev1.VolumeMount{
 							{Name: "config", MountPath: "/etc/xpumd", ReadOnly: true},
 							{Name: "rundir", MountPath: "/run/xpumd"},
+							{Name: "devdri", MountPath: "/dev/dri", ReadOnly: true},
 						},
 					},
 				},
@@ -200,6 +197,14 @@ func (x *xpuManager) ensureDaemonSet(ctx context.Context, devConfig *intelv1alph
 							HostPath: &corev1.HostPathVolumeSource{
 								Path: "/run/xpumd",
 								Type: &directoryOrCreate,
+							},
+						},
+					},
+					{
+						Name: "devdri",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: "/dev/dri",
 							},
 						},
 					},

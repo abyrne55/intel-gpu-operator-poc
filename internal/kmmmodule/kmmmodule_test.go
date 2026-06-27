@@ -203,10 +203,10 @@ var _ = Describe("getNodeSelector", func() {
 		Expect(sel).To(Equal(map[string]string{"custom-label": "value"}))
 	})
 
-	It("should return PCI vendor selector as default", func() {
+	It("should return GPU label selector as default", func() {
 		devConfig := &intelv1alpha1.DeviceConfig{}
 
 		sel := getNodeSelector(devConfig)
-		Expect(sel).To(HaveKey("feature.node.kubernetes.io/pci-8086.present"))
+		Expect(sel).To(Equal(map[string]string{"intel.feature.node.kubernetes.io/gpu": "true"}))
 	})
 })
